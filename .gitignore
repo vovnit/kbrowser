@@ -1,0 +1,16 @@
+# Build outputs
+/out/
+*.ext3
+*.kpkg
+
+# Test VM: kernel, disks, SSH key, sockets, logs, screenshots
+/vm/out/
+
+# Logs copied off a device
+*.log
+
+# OS / editor noise
+.DS_Store
+*.swp
+.idea/
+.vscode/

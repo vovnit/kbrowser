@@ -1,0 +1,29 @@
+{
+  "policies": {
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DisableFeedbackCommands": true,
+    "DontCheckDefaultBrowser": true,
+    "DisableAppUpdate": true,
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "NoDefaultBookmarks": true,
+    "Homepage": { "URL": "about:newtab", "StartPage": "homepage" },
+    "UserMessaging": {
+      "WhatsNew": false, "ExtensionRecommendations": false, "FeatureRecommendations": false,
+      "UrlbarInterventions": false, "SkipOnboarding": true, "MoreFromMozilla": false
+    },
+    "FirefoxHome": { "Search": true, "TopSites": true, "SponsoredTopSites": false, "Highlights": false, "Pocket": false, "SponsoredPocket": false, "Snippets": false },
+    "ExtensionSettings": {
+      "touchkit@kbrowser.local": {
+        "installation_mode": "force_installed",
+        "install_url": "file:///opt/kbrowser/touchkit.xpi"
+      },
+      "uBlock0@raymondhill.net": {
+        "installation_mode": "normal_installed",
+        "install_url": "file:///opt/kbrowser/ublock_origin.xpi"
+      }
+    }
+  }
+}

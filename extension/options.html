@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Touch Kit settings</title>
+<style>
+  body { font-family: "DejaVu Sans", sans-serif; margin: 0; padding: 16px 12px 140px; background: #fff; color: #000; max-width: 720px; }
+  h1 { font-size: 22px; }
+  label { display: flex; align-items: center; gap: 10px; font-size: 18px; min-height: 52px; border-bottom: 1px solid #999; }
+  label span { flex: 1; }
+  input[type=checkbox] { width: 28px; height: 28px; }
+  select, input[type=text] { font-size: 17px; height: 44px; border: 1.5px solid #000; border-radius: 6px; background: #fff; }
+  input[type=text] { width: 100%; }
+  .col { flex-direction: column; align-items: stretch; padding: 8px 0; }
+  p.saved { font-size: 15px; }
+</style>
+</head>
+<body>
+<h1>Kindle Touch Kit</h1>
+<label><span>Show bottom bar</span><input type="checkbox" id="showBar"></label>
+<label><span>Keyboard pops up on text fields</span><input type="checkbox" id="autoKeyboard"></label>
+<label><span>E-ink mode (no animations)</span><input type="checkbox" id="einkMode"></label>
+<label><span>Drag with finger</span>
+  <select id="dragScroll">
+    <option value="follow">scrolls continuously</option>
+    <option value="page">turns a page (fewer e-ink refreshes)</option>
+    <option value="off">does nothing (select text)</option>
+  </select></label>
+<label><span>Page turn overlap</span>
+  <select id="pageOverlap">
+    <option value="0">none</option><option value="0.05">5%</option>
+    <option value="0.1">10%</option><option value="0.2">20%</option>
+  </select></label>
+<label class="col"><span>Keyboard layouts (comma separated: en, ru, fr, de)</span><input type="text" id="layouts"></label>
+<label class="col"><span>Search URL (%s = query)</span><input type="text" id="searchUrl"></label>
+<p class="saved" id="saved"></p>
+<script src="layouts.js"></script>
+<script src="kit.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

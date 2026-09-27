@@ -1,0 +1,7 @@
+#!/bin/sh
+# xinit client: what upstart's `x` job runs on the device (Xorg + awesome).
+xset s off -dpms 2>/dev/null
+xrandr --output "$(xrandr | awk '/ connected/{print $1; exit}')" --mode 1272x1696 2>/dev/null
+# VNC view of the "e-ink" screen for the host (vm/run.sh forwards 127.0.0.1:5910).
+x11vnc -display :0 -forever -shared -nopw -quiet -rfbport 5900 -o /var/log/x11vnc.log >/dev/null 2>&1 &
+exec awesome -c /etc/xdg/awesome/rc.lua

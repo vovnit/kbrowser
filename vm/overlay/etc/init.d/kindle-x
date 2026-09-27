@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+# The Kindle's X server (:0) with the lab126-flavoured awesome WM.
+description="Kindle-like Xorg :0 + awesome"
+# KINDLE_DEPTH=8 (default): Xvfb, 8-bit StaticGray like the Kindle's e-ink X server;
+#   view it with VNC (vm/run.sh forwards localhost:5910). QEMU's own window stays empty.
+# KINDLE_DEPTH=24: Xorg on the virtio GPU, visible in QEMU's window (NOT like the device).
+KINDLE_DEPTH="${KINDLE_DEPTH:-8}"
+KINDLE_SIZE="${KINDLE_SIZE:-1272x1696}"
+command=/usr/bin/xinit
+if [ "$KINDLE_DEPTH" = 24 ]; then
+	command_args="/usr/local/bin/kindle-wm-session -- /usr/bin/Xorg :0 -nolisten tcp -ac -s 0 -dpms vt7"
+else
+	command_args="/usr/local/bin/kindle-wm-session -- /usr/bin/Xvfb :0 -cc 0 -screen 0 ${KINDLE_SIZE}x8 -nolisten tcp -ac -dpi 300"
+fi
+supervisor=supervise-daemon
+respawn_delay=2
+output_log=/var/log/kindle-x.log
+error_log=/var/log/kindle-x.log
+
+depend() {
+	need localmount kindle-sim
+	after dbus
+}

@@ -1,0 +1,38 @@
+#!/sbin/openrc-run
+# Recreates the Kindle's memory situation:
+#   * 128 MB zram swap (the stock /dev/zram0 on PW5/PW6)
+#   * "framework ballast": resident memory standing in for Amazon's daemons.
+#     Sized so that total used RAM matches what was measured on a PW5:
+#       ~110 MB used with lab126_gui stopped, ~235 MB with it running.
+#     `initctl stop|start lab126_gui` (stub) shrinks/grows it.
+description="Kindle memory/zram simulation"
+
+depend() {
+	need localmount
+	before kindle-x
+}
+
+start() {
+	ebegin "Setting up Kindle simulation"
+	mkdir -p /run/kindle-sim
+	mountpoint -q /run/kindle-sim || mount -t tmpfs -o size=400m tmpfs /run/kindle-sim
+	if [ ! -e /sys/block/zram0/disksize ] || [ "$(cat /sys/block/zram0/disksize)" = 0 ]; then
+		modprobe zram num_devices=1 2>/dev/null
+		echo lzo-rle > /sys/block/zram0/comp_algorithm 2>/dev/null || true
+		echo 128M > /sys/block/zram0/disksize
+		mkswap /dev/zram0 >/dev/null
+		swapon -p -1 /dev/zram0
+	fi
+	# Base measurement once, before any ballast exists.
+	awk '/^MemTotal/{t=$2} /^MemAvailable/{a=$2} END{print int((t-a)/1024)}' /proc/meminfo > /run/kindle-sim/base_used_mb
+	echo running > /run/kindle-sim/lab126_gui
+	echo running > /run/kindle-sim/pillow
+	/usr/local/sbin/kindle-ballast apply
+	eend 0
+}
+
+stop() {
+	rm -f /run/kindle-sim/ballast.*
+	swapoff /dev/zram0 2>/dev/null
+	return 0
+}

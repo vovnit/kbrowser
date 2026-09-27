@@ -1,0 +1,21 @@
+{
+  "BrowserSignin": 0,
+  "SyncDisabled": true,
+  "MetricsReportingEnabled": false,
+  "PromotionsEnabled": false,
+  "DefaultBrowserSettingEnabled": false,
+  "BackgroundModeEnabled": false,
+  "HardwareAccelerationModeEnabled": false,
+  "TranslateEnabled": false,
+  "ShoppingListEnabled": false,
+  "AutoplayAllowed": false,
+  "RestoreOnStartup": 5,
+  "HomepageIsNewTabPage": true,
+  "DownloadDirectory": "/mnt/us/documents/Downloads",
+  "ExtensionInstallForcelist": [
+    "ddkjiahejlhfcafbddmgiahcphecmpfh;https://clients2.google.com/service/update2/crx"
+  ],
+  "ExtensionInstallSources": [
+    "file:///*"
+  ]
+}

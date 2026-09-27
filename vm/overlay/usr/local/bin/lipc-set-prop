@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stub of the Kindle's lipc-set-prop: logs and succeeds.
+echo "$(date '+%T') lipc-set-prop $*" >> /var/log/kindle-stubs.log
+exit 0

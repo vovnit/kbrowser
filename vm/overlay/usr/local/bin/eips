@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stub of the Kindle's eips (e-ink print/refresh). Logs only.
+echo "$(date '+%T') eips $*" >> /var/log/kindle-stubs.log
+exit 0

@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Kindle Touch Kit",
+  "short_name": "TouchKit",
+  "version": "0.2.0",
+  "description": "E-ink and touch helpers for browsing on a jailbroken Kindle: on-screen keyboard, page-turn buttons, drag scrolling, tab switcher, start page.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "touchkit@kbrowser.local",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "topSites"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "layouts.js",
+        "kit.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

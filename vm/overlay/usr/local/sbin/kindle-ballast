@@ -1,0 +1,49 @@
+#!/bin/sh
+# Keeps /run/kindle-sim/ballast.* sized so the VM's "used" RAM matches a real
+# Paperwhite. Contents are copied from system libraries so zram compresses them
+# about as well as it compresses real process memory (~2-3x), not like
+# /dev/zero (infinitely) or /dev/urandom (not at all).
+#
+#   kindle-ballast apply          size according to lab126_gui state
+#   kindle-ballast status
+#
+# Targets can be overridden in /etc/conf.d/kindle-sim-targets.
+set -eu
+D=/run/kindle-sim
+TARGET_UI_STOPPED_MB=110
+TARGET_UI_RUNNING_MB=235
+[ -r /etc/conf.d/kindle-sim-targets ] && . /etc/conf.d/kindle-sim-targets
+
+base="$(cat $D/base_used_mb 2>/dev/null || echo 60)"
+state="$(cat $D/lab126_gui 2>/dev/null || echo running)"
+if [ "$state" = running ]; then target=$TARGET_UI_RUNNING_MB; else target=$TARGET_UI_STOPPED_MB; fi
+want=$((target - base)); [ "$want" -lt 0 ] && want=0
+
+have=0
+for f in $D/ballast.*; do [ -e "$f" ] && have=$((have + 1)); done   # 1 MB chunks
+
+case "${1:-apply}" in
+status)
+	echo "lab126_gui=$state base_used=${base}MB target_used=${target}MB ballast=${have}MB"
+	exit 0 ;;
+apply) ;;
+*) echo "usage: $0 apply|status" >&2; exit 2 ;;
+esac
+
+if [ "$have" -lt "$want" ]; then
+	# One pool of "realistic" bytes, reused for every chunk.
+	if [ ! -s $D/.pool ]; then
+		find /usr/lib /lib -type f -name '*.so*' 2>/dev/null | head -200 | xargs cat 2>/dev/null | head -c 8388608 > $D/.pool
+	fi
+	i=$have
+	while [ "$i" -lt "$want" ]; do
+		off=$((i % 7))
+		dd if=$D/.pool of=$D/ballast.$i bs=1M count=1 skip=$off 2>/dev/null
+		i=$((i + 1))
+	done
+elif [ "$have" -gt "$want" ]; then
+	i=$((have - 1))
+	while [ "$i" -ge "$want" ]; do rm -f $D/ballast.$i; i=$((i - 1)); done
+fi
+rm -f $D/.pool
+echo "lab126_gui=$state ballast=${want}MB (base ${base}MB -> target ${target}MB used)"

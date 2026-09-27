@@ -1,0 +1,126 @@
+#!/bin/sh
+# Runs INSIDE the kbrowser chroot (started by kbrowser.sh on the Kindle side).
+# Starts exactly one browser, no desktop:
+#
+#   KBROWSER_MODE=direct  the browser window goes straight onto the Kindle's X
+#                         server (:0). Its WM_NAME is pinned to a lab126 title so
+#                         the Kindle WM makes it fullscreen. Lightest option and
+#                         the only one where real touch events can reach the browser.
+#   KBROWSER_MODE=kview   the browser draws on a private 24-bit Xvfb (:1); kview
+#                         copies changed areas into one fullscreen window on :0,
+#                         converting to the Kindle's 8-bit grayscale screen, and sends
+#                         taps back. Needed when :0 is not 24-bit (Chromium and GTK3
+#                         Firefox render black on 8-bit screens).
+#   KBROWSER_MODE=xephyr  nested Xephyr on :0 (only useful on a 24-bit screen:
+#                         Xephyr cannot be deeper than its host).
+#   KBROWSER_MODE=auto    (default) direct on a 24/32-bit screen, otherwise kview.
+set -u
+BROWSER="${KBROWSER_BROWSER:-chromium}"
+MODE="${KBROWSER_MODE:-auto}"
+USER_NAME=kindle
+APP_ID="${KBROWSER_APP_ID:-org.kbrowser}"
+export KBROWSER_WM_TITLE="L:A_N:application_ID:${APP_ID}_PC:N_WS:true_O:U"
+
+log() { echo "kbrowser-session: $*"; }
+
+chmod 1777 /tmp 2>/dev/null
+mkdir -p /tmp/.X11-unix /run/dbus
+# Our own system bus (Kindle's is outside the chroot). Clear leftovers of a previous run.
+rm -f /run/dbus/system_bus_socket /run/dbus/dbus.pid
+dbus-daemon --system --fork 2>/dev/null
+
+GEOM="$(DISPLAY=:0 xwininfo -root 2>/dev/null | awk '/-geometry/{print $2; exit}' | cut -d+ -f1)"
+[ -n "$GEOM" ] || GEOM=1236x1648
+W="${GEOM%x*}"; H="${GEOM#*x}"
+DEPTH="$(DISPLAY=:0 xdpyinfo 2>/dev/null | awk '/depth of root window/{print $5; exit}')"
+if [ "$MODE" = auto ]; then
+  if [ "${DEPTH:-0}" -ge 24 ]; then MODE=direct; else MODE=kview; fi
+elif [ "$MODE" != kview ] && [ "${DEPTH:-0}" -lt 24 ]; then
+  log "MODE=$MODE needs a 24-bit screen, this one is ${DEPTH:-?}-bit: using kview"
+  MODE=kview
+fi
+log "screen ${W}x${H}x${DEPTH:-?}, browser=$BROWSER, mode=$MODE"
+
+XEPHYR_PID=""
+KVIEW_PID=""
+if [ "$MODE" = kview ]; then
+  Xvfb :1 -screen 0 "${W}x${H}x24" -nolisten tcp -ac -dpi 300 >/tmp/xvfb.log 2>&1 &
+  XEPHYR_PID=$!
+  i=0
+  until DISPLAY=:1 xdpyinfo >/dev/null 2>&1; do
+    i=$((i + 1)); [ $i -gt 30 ] && { log "Xvfb did not start"; cat /tmp/xvfb.log; exit 1; }
+    sleep 0.5
+  done
+  kview -src :1 -dst :0 -title "$KBROWSER_WM_TITLE" -delay "${KBROWSER_REFRESH_MS:-80}" &
+  KVIEW_PID=$!
+  export DISPLAY=:1
+  unset KBROWSER_WM_TITLE   # nothing parses titles on the private display
+elif [ "$MODE" = xephyr ]; then
+  DISPLAY=:0 Xephyr :1 -title "L:A_N:application_ID:${APP_ID}.xephyr_WS:true_O:U" \
+    -ac -br -screen "${W}x${H}x24" -resizeable -nolisten tcp -dpi 300 >/tmp/xephyr.log 2>&1 &
+  XEPHYR_PID=$!
+  i=0
+  until DISPLAY=:1 xdpyinfo >/dev/null 2>&1; do
+    i=$((i + 1)); [ $i -gt 30 ] && { log "Xephyr did not start"; cat /tmp/xephyr.log; exit 1; }
+    sleep 0.5
+  done
+  export DISPLAY=:1
+  unset KBROWSER_WM_TITLE   # nothing parses titles inside Xephyr
+else
+  export DISPLAY=:0
+fi
+
+# Per-browser command line. Settings that must survive env are baked into
+# /usr/lib/firefox-esr/kbrowser.cfg and /etc/chromium/kbrowser.conf.
+case "$BROWSER" in
+  firefox|firefox-esr)
+    BIN=firefox-esr
+    set -- --new-instance --profile /home/$USER_NAME/.kbrowser/firefox
+    ;;
+  chromium|chrome)
+    BIN=chromium
+    set -- --user-data-dir=/home/$USER_NAME/.kbrowser/chromium --window-position=0,0 --window-size="$W,$H"
+    [ -n "${KBROWSER_WM_TITLE:-}" ] && set -- "$@" "--window-name=$KBROWSER_WM_TITLE"
+    [ "${KBROWSER_UA:-}" = mobile ] && set -- "$@" \
+      "--user-agent=Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"
+    ;;
+  *) log "unknown browser '$BROWSER'"; exit 2 ;;
+esac
+[ -n "${KBROWSER_URL:-}" ] && set -- "$@" "$KBROWSER_URL"
+mkdir -p /home/$USER_NAME/.kbrowser/firefox /home/$USER_NAME/.kbrowser/chromium
+# Chromium keeps running a cached copy of an unpacked extension's service worker
+# even after its files change. Drop that cache when the Touch Kit was updated.
+TK_HASH="$(cat /opt/kbrowser/touchkit/* 2>/dev/null | md5sum | cut -c1-32)"
+CP=/home/$USER_NAME/.kbrowser/chromium
+if [ "$(cat "$CP/.touchkit-hash" 2>/dev/null)" != "$TK_HASH" ]; then
+  rm -rf "$CP/Default/Service Worker"
+  echo "$TK_HASH" > "$CP/.touchkit-hash"
+fi
+chown -R $USER_NAME: /home/$USER_NAME/.kbrowser
+
+# kview mode: kview is also the window manager of the private display (fills the
+# screen, no decorations, acknowledges fullscreen requests).
+# xephyr mode has no WM: size the browser window ourselves once it maps.
+if [ "$MODE" = xephyr ]; then
+  ( xdotool search --sync --onlyvisible --class "$BIN|firefox|chromium" 2>/dev/null | head -1 |
+      while read -r wid; do xdotool windowmove "$wid" 0 0 windowsize "$wid" "$W" "$H"; done ) &
+fi
+
+# Quote args for su -c.
+ARGS=""
+for a in "$@"; do ARGS="$ARGS '$(printf %s "$a" | sed "s/'/'\\\\''/g")'"; done
+
+su -s /bin/sh $USER_NAME -c "
+  export DISPLAY='$DISPLAY' HOME=/home/$USER_NAME XDG_RUNTIME_DIR=/tmp/kbrowser-runtime
+  export KBROWSER_WM_TITLE='${KBROWSER_WM_TITLE:-}' KBROWSER_SCALE='${KBROWSER_SCALE:-2.0}'
+  export KBROWSER_UA='${KBROWSER_UA:-}' KBROWSER_DOWNLOADS='${KBROWSER_DOWNLOADS:-/mnt/us/documents/Downloads}'
+  export KBROWSER_RENDERERS='${KBROWSER_RENDERERS:-2}' KBROWSER_LOWEND='${KBROWSER_LOWEND:-0}'
+  export MOZ_USE_XINPUT2=1 MOZ_ENABLE_WAYLAND=0 NO_AT_BRIDGE=1 GTK_OVERLAY_SCROLLING=0
+  mkdir -p \$XDG_RUNTIME_DIR; chmod 700 \$XDG_RUNTIME_DIR
+  exec dbus-run-session -- $BIN $ARGS
+"
+status=$?
+log "browser exited ($status)"
+[ -n "$KVIEW_PID" ] && kill "$KVIEW_PID" 2>/dev/null
+[ -n "$XEPHYR_PID" ] && kill "$XEPHYR_PID" 2>/dev/null
+exit $status

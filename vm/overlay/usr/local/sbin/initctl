@@ -1,0 +1,29 @@
+#!/bin/sh
+# Stub of upstart's initctl as found on the Kindle. Only the jobs Kindle hacks
+# actually touch are modelled; everything is logged to /var/log/kindle-stubs.log.
+echo "$(date '+%T') initctl $*" >> /var/log/kindle-stubs.log
+cmd="$1"; job="${2:-}"
+case "$(basename "$0")" in start|stop|status|restart) job="$1"; cmd="$(basename "$0")" ;; esac
+S=/run/kindle-sim
+
+case "$cmd:$job" in
+stop:lab126_gui)
+	echo stopped > $S/lab126_gui
+	/usr/local/sbin/kindle-ballast apply >/dev/null
+	# On the device pillow stops with lab126_gui (and the panel freezes).
+	echo stopped > $S/pillow
+	echo "lab126_gui stop/waiting" ;;
+start:lab126_gui)
+	echo running > $S/lab126_gui
+	echo running > $S/pillow
+	/usr/local/sbin/kindle-ballast apply >/dev/null
+	echo "lab126_gui start/running" ;;
+stop:pillow)  echo stopped > $S/pillow;  echo "pillow stop/waiting" ;;
+start:pillow) echo running > $S/pillow;  echo "pillow start/running" ;;
+status:*)
+	st="$(cat $S/$job 2>/dev/null || echo running)"
+	[ "$st" = running ] && echo "$job start/running" || echo "$job stop/waiting" ;;
+restart:*) echo "$job start/running" ;;
+*) echo "initctl stub: '$*' ignored" ;;
+esac
+exit 0

@@ -1,0 +1,10 @@
+{
+  "manifest_version": 2,
+  "id": "kbrowser",
+  "name": "kbrowser",
+  "author": "kbrowser",
+  "description": "Firefox ESR or Chromium as a single app (no desktop) with e-ink/touch tuning and an on-screen keyboard extension. Needs kbrowser.ext3 in /mnt/us/kbrowser/.",
+  "version": [0, 1, 3],
+  "dependencies": [],
+  "supported_platforms": ["kindlehf"]
+}

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Stub of the Kindle's lipc-get-prop. Returns plausible values for the
+# properties hacks commonly read; logs everything.
+echo "$(date '+%T') lipc-get-prop $*" >> /var/log/kindle-stubs.log
+while [ $# -gt 0 ]; do case "$1" in -*) shift ;; *) break ;; esac; done
+case "$1 $2" in
+"com.lab126.winmgr orientation") echo U ;;
+"com.lab126.powerd status") echo "Screen Saver: No" ;;
+"com.lab126.powerd battLevel") echo 87 ;;
+"com.lab126.powerd isCharging") echo 0 ;;
+"com.lab126.wifid cmState") echo CONNECTED ;;
+"com.lab126.powerd preventScreenSaver") echo 0 ;;
+*) echo 0 ;;
+esac
