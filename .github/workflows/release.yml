@@ -1,0 +1,128 @@
+# Build kbrowser and publish a GitHub release when a version tag is pushed.
+#
+#   git tag v0.1.3 && git push origin v0.1.3
+#
+# The tag must match package/manifest.json ("version": [0, 1, 3]).
+# Release assets:
+#   kbrowser-chromium.ext3.zip   image with Chromium only (recommended, smaller)
+#   kbrowser-full.ext3.zip       image with Chromium + Firefox ESR
+#   kbrowser_<ver>_kindlehf.kpkg KPM package (launcher, settings, library items)
+#   SHA256SUMS
+# Running the workflow by hand (workflow_dispatch) builds the same files as
+# workflow artifacts without creating a release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.flavor }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - flavor: chromium
+            browsers: chromium
+          - flavor: full
+            browsers: chromium firefox
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          pkg="v$(python3 -c 'import json;print(".".join(map(str,json.load(open("package/manifest.json"))["version"])))')"
+          if [ "$pkg" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package/manifest.json version $pkg"
+            exit 1
+          fi
+
+      # The image is built in linux/arm/v7 Alpine containers (armhf, like the Kindle).
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
+
+      - name: Build image and package
+        env:
+          BROWSERS: ${{ matrix.browsers }}
+        run: ./build.sh
+
+      - name: Compress image
+        run: |
+          cd out
+          mv kbrowser.ext3 "kbrowser-${{ matrix.flavor }}.ext3"
+          zip -9 -q "kbrowser-${{ matrix.flavor }}.ext3.zip" "kbrowser-${{ matrix.flavor }}.ext3"
+          rm "kbrowser-${{ matrix.flavor }}.ext3"
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.flavor }}
+          path: out/kbrowser-${{ matrix.flavor }}.ext3.zip
+          compression-level: 0
+          if-no-files-found: error
+
+      # The package doesn't depend on the flavor; publish it once.
+      - uses: actions/upload-artifact@v4
+        if: matrix.flavor == 'chromium'
+        with:
+          name: package
+          path: out/*.kpkg
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          awk -v v="$ver" '
+            /^## / { on = ($2 == v); next }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Release $GITHUB_REF_NAME" > notes.md
+          cat >> notes.md <<'NOTES'
+
+          ### Install / update
+          1. Unzip an image and copy it to the Kindle as `/mnt/us/kbrowser/kbrowser.ext3`
+             (`kbrowser-chromium` is recommended; `kbrowser-full` adds Firefox ESR).
+          2. Install the `.kpkg` with KPM. If kbrowser is already installed, uninstall it first
+             (KPM 0.2.x can't upgrade file-installed packages).
+          3. Tap **Chromium** in the library.
+
+          See the README for details and troubleshooting.
+          NOTES
+          cat notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "kbrowser $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --verify-tag

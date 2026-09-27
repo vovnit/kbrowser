@@ -29,6 +29,18 @@ screen.
 
 ## Install
 
+### From a release (no build needed)
+
+1. Download from the [Releases](../../releases) page:
+   - `kbrowser-chromium.ext3.zip` (recommended; `kbrowser-full` also has Firefox ESR)
+   - `kbrowser_<ver>_kindlehf.kpkg`
+2. Unzip the image and copy it over USB to `/mnt/us/kbrowser/kbrowser.ext3`.
+   Keep that exact file name.
+3. Install the `.kpkg` with KPM, then tap **Chromium** in your library. See steps
+   3–4 below.
+
+### Build it yourself
+
 You need:
 - a jailbroken Kindle with **KPM**, and Wi-Fi;
 - a Mac or Linux PC with **Docker** that can run `linux/arm/v7` containers
@@ -174,6 +186,25 @@ works, and how fullscreen works.
 | `extension/` | Kindle Touch Kit (MV3, Chromium + Firefox) |
 | `vm/` | Kindle-like QEMU test VM: see [docs/VM.md](docs/VM.md) |
 | `docs/` | architecture, VM, research notes |
+| `.github/workflows/release.yml` | builds and publishes a release on `v*` tags |
+
+## Releasing
+
+Bump `version` in `package/manifest.json`, add a `## x.y.z` section to
+`CHANGELOG.md`, then tag:
+```sh
+git tag v0.1.3 && git push origin v0.1.3
+```
+`.github/workflows/release.yml` builds both image flavours on GitHub (ARM
+emulated with QEMU, which takes a while) and publishes a release with:
+- the zipped images;
+- the `.kpkg`;
+- `SHA256SUMS`;
+- the CHANGELOG section as release notes.
+
+The workflow fails if the tag doesn't match the package version. Running it
+manually from the Actions tab builds the same files as downloadable artifacts
+without releasing.
 
 ## Testing without a Kindle
 
